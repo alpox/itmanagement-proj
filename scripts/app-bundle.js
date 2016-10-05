@@ -1,4 +1,4 @@
-define('app',['exports', 'aurelia-framework', './data-service', 'd3'], function (exports, _aureliaFramework, _dataService, _d) {
+define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', 'd3'], function (exports, _aureliaFramework, _aureliaPal, _dataService, _d) {
   'use strict';
 
   Object.defineProperty(exports, "__esModule", {
@@ -54,6 +54,18 @@ define('app',['exports', 'aurelia-framework', './data-service', 'd3'], function 
 
     App.prototype.attached = function attached() {
       this.drawGraph();
+
+      window.addEventListener("resize", this.resizeEventHandler.bind(this));
+    };
+
+    App.prototype.detached = function detached() {
+      window.removeEventListener("resize", this.resizeEventHandler.bind(this));
+    };
+
+    App.prototype.resizeEventHandler = function resizeEventHandler() {
+      clearTimeout(this.resizeTimer);
+
+      this.resizeTimer = setTimeout(this.drawGraph(), 150);
     };
 
     App.prototype.transform = function transform(data, type, idFunc, includeFunc) {
@@ -96,6 +108,8 @@ define('app',['exports', 'aurelia-framework', './data-service', 'd3'], function 
       var height = Number.parseInt(d3.select("svg").style("height"));
       var graph = d3.select("#graph");
       var app = this;
+
+      graph.selectAll("*").remove();
 
       var repositories = this.transform(this.repositories, 'repo', function (entry) {
         return entry.name;
@@ -185,7 +199,7 @@ define('app',['exports', 'aurelia-framework', './data-service', 'd3'], function 
         }
       });
 
-      var simulation = d3.forceSimulation().force("charge", d3.forceManyBody().strength(-10).theta(1)).force("link", d3.forceLink().distance(15).strength(0.4).id(function (d) {
+      var simulation = d3.forceSimulation().force("charge", d3.forceManyBody().strength(-10)).force("link", d3.forceLink().distance(15).strength(0.4).id(function (d) {
         return d.id;
       })).force("center", d3.forceCenter(width / 2, height / 2)).force("collide", d3.forceCollide(2)).force("x", d3.forceX()).force("y", d3.forceY());
 

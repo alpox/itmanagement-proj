@@ -1,4 +1,5 @@
 import {inject} from 'aurelia-framework';
+import {PLATFORM} from 'aurelia-pal';
 import {DataService} from './data-service';
 import * as d3 from 'd3';
 
@@ -9,6 +10,8 @@ export class App {
   repositories;
   users;
   rels;
+
+  resizeTimer;
 
   /**
    * The constructor of the class App
@@ -49,6 +52,18 @@ export class App {
    */
   attached() {
     this.drawGraph();
+
+    window.addEventListener("resize", this.resizeEventHandler.bind(this));
+  }
+
+  detached() {
+    window.removeEventListener("resize", this.resizeEventHandler.bind(this));
+  }
+
+  resizeEventHandler() {
+    clearTimeout(this.resizeTimer);
+
+    this.resizeTimer = setTimeout(this.drawGraph(), 150);
   }
 
   /**
@@ -128,6 +143,8 @@ export class App {
     let height = Number.parseInt(d3.select("svg").style("height"));
     let graph = d3.select("#graph");
     let app = this;
+
+    graph.selectAll("*").remove();
 
     // Transform data
     let repositories = this.transform(this.repositories, 'repo',
@@ -243,7 +260,7 @@ export class App {
 
     // Setup forces
     let simulation = d3.forceSimulation()
-        .force("charge", d3.forceManyBody().strength(-10).theta(1))
+        .force("charge", d3.forceManyBody().strength(-10))
         .force("link", d3.forceLink().distance(15).strength(0.4).id(function(d) { return d.id; }))
         .force("center", d3.forceCenter(width / 2, height / 2))
         .force("collide", d3.forceCollide(2))
