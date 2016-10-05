@@ -1,30 +1,59 @@
 import {inject} from 'aurelia-framework';
 import {HttpClient} from 'aurelia-http-client';
 
+const username = "gitPuller1";
+const password = "64b115ab7af63aa80bbd62449455b115634aca29";
+
+const userHash = btoa(`${username}:${password}`);
+
 @inject(HttpClient)
 export class DataService {
-    httpClient;
-    constructor(httpClient) {
-        httpClient = new HttpClient()
+    itprojClient;
+    githubClient;
+
+    constructor(itprojClient, githubClient) {
+        itprojClient = new HttpClient()
             .configure(x => {
                 x.withBaseUrl('http://beta.api.itprojektmanagement.rafaelkallis.com/');
             });
-        this.httpClient = httpClient;
+        githubClient = new HttpClient()
+            .configure(x => {
+                x.withHeader('Accept', 'application/vnd.github.v3+json');
+                x.withHeader('Authorization', `Basic ${userHash}`);
+                x.withBaseUrl('https://api.github.com/');
+            });
+        this.itprojClient = itprojClient;
+        this.githubClient = githubClient;
     }
 
     fetchRepositories() {
-        return this.httpClient.get('repositories')
+        return this.itprojClient.get('repositories')
+            .then(res => JSON.parse(res.response))
             .catch(console.log);
     }
 
     fetchUsers() {
-        return this.httpClient.get('users')
+        return this.itprojClient.get('users')
+            .then(res => JSON.parse(res.response))
             .catch(console.log);
     }
 
     fetchRels() {
-        return this.httpClient.get('rels')
+        return this.itprojClient.get('rels')
+            .then(res => JSON.parse(res.response))
             .catch(console.log);
+    }
+
+    fetchRepositoryInfo(repo) {
+        return this.githubClient.get(`repos/${repo}`)
+            .then(res => JSON.parse(res.response))
+            .catch(console.log);
+    }
+
+    fetchUserInfo(url) {
+        return this.githubClient.get(url)
+            .then(res => JSON.parse(res.response))
+            .catch(console.log)
     }
 
     mockRels() {

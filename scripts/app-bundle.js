@@ -43,14 +43,10 @@ define('app',['exports', 'aurelia-framework', './data-service', 'd3'], function 
     App.prototype.activate = function activate() {
       var _this = this;
 
-      return Promise.all([this.dataService.fetchRepositories(), this.dataService.fetchUsers(), this.dataService.fetchRels()]).catch(console.log).then(function (result) {
-        var _result$map = result.map(function (res) {
-          return JSON.parse(res.response);
-        });
-
-        _this.repositories = _result$map[0];
-        _this.users = _result$map[1];
-        _this.rels = _result$map[2];
+      return Promise.all([this.dataService.fetchRepositories(), this.dataService.fetchUsers(), this.dataService.fetchRels()]).then(function (result) {
+        _this.repositories = result[0];
+        _this.users = result[1];
+        _this.rels = result[2];
 
         return true;
       });
@@ -72,17 +68,34 @@ define('app',['exports', 'aurelia-framework', './data-service', 'd3'], function 
       });
     };
 
-    App.prototype.scale = function scale(n_max, n_commits, max, min) {
-      return (max - min) * (n_commits / n_max) + min;
+    App.prototype.scale = function scale(commits, num, max, min) {
+      var _this2 = this;
+
+      var filtered_commits = commits.filter(function (commit) {
+        return _this2.isStray(commits, commit);
+      });
+      var n_max = d3.max(filtered_commits);
+      if (!this.isStray(commits, num)) return (max - min) * (num / n_max) + min;else return max + 1;
+    };
+
+    App.prototype.isStray = function isStray(commits, commit) {
+      return commit >= 2 * this.quartile(commits, 99);
+    };
+
+    App.prototype.quartile = function quartile(array, percent) {
+      if (!percent) percent = 50;
+      var n = Math.round(array.length * percent / 100);
+      return array[n];
     };
 
     App.prototype.drawGraph = function drawGraph() {
-      var _this2 = this;
+      var _this3 = this;
 
       var links = [];
-      var width = 1000;
-      var height = 800;
+      var width = Number.parseInt(d3.select("svg").style("width"));
+      var height = Number.parseInt(d3.select("svg").style("height"));
       var graph = d3.select("#graph");
+      var app = this;
 
       var repositories = this.transform(this.repositories, 'repo', function (entry) {
         return entry.name;
@@ -93,7 +106,7 @@ define('app',['exports', 'aurelia-framework', './data-service', 'd3'], function 
       var users = this.transform(this.users, 'user', function (entry) {
         return entry.hashed_email;
       }, function (entry) {
-        return { any_commit_sha: entry.any_commit_sha };
+        return { any_commit_url: entry.any_commit_url };
       });
 
       var nodeData = repositories.concat(users);
@@ -106,33 +119,75 @@ define('app',['exports', 'aurelia-framework', './data-service', 'd3'], function 
         });
       });
 
-      var max_commits = d3.max(rels.map(function (rel) {
+      var commits = rels.map(function (rel) {
         return rel.n_commits;
-      }));
+      }).sort(function (a, b) {
+        return a - b;
+      });
+      commits.avg = commits.reduce(function (p, c) {
+        return p + c;
+      }) / commits.length;
 
       for (var i = 0; i < rels.length - 1; i++) {
         links.push({
           source: rels[i].repository_name,
           target: rels[i].user_hashed_email,
           value: rels[i].n_commits });
-        users.find(function (user) {
+
+        var user = users.find(function (user) {
           return user.id == rels[i].user_hashed_email;
-        }).n_commits = rels[i].n_commits;
+        });
+        if (user.n_commits) user.n_commits += rels[i].n_commits;else user.n_commits = rels[i].n_commits;
       }
 
+      var tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0);
+
       var link = graph.append("g").attr("class", "links").selectAll("line").data(links).enter().append("line").attr("stroke", "#000").attr("stroke-width", function (d) {
-        return _this2.scale(max_commits, d.value, 5, 1);
+        return _this3.scale(commits, d.value, 4, 2);
+      }).attr("opacity", function (d) {
+        return _this3.scale(commits, d.value, 1, 0.3);
       });
 
-      var node = graph.append("g").attr("class", "nodes").selectAll("circle").data(nodeData).enter().append("circle").attr("r", function (d) {
-        return d.type == 'repo' ? _this2.scale(max_commits, d.n_commits, 7, 4) : _this2.scale(max_commits, d.n_commits, 6, 3);
-      }).attr("fill", function (d) {
+      var node = graph.append("g").attr("class", "nodes").selectAll("circle").data(nodeData).enter().append("circle").attr("class", "node").attr("r", function (d) {
+        return d.n_commits ? d.type == 'repo' ? _this3.scale(commits, d.n_commits, 15, 4) : _this3.scale(commits, d.n_commits, 6, 3) : 3;
+      }).attr("stroke", "#333").attr("fill", function (d) {
         return d.type == 'repo' ? "#00BCD4" : "#FF9800";
-      }).call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+      }).call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended)).on("mouseover", function (d) {
+        tooltip.transition().style("opacity", .9);
+        tooltip.html('<i class="fa fa-spinner fa-spin"></i>').style("left", d3.event.pageX + "px").style("top", d3.event.pageY - 28 + "px");
 
-      var simulation = d3.forceSimulation().force("charge", d3.forceManyBody().strength(-10)).force("link", d3.forceLink().distance(20).strength(0.2).id(function (d) {
+        switch (d.type) {
+          case 'repo':
+            app.dataService.fetchRepositoryInfo(d.id).then(function (repo) {
+              var thtml = 'Name: ' + repo.name;
+              if (repo.description) thtml += '<br/>Description: ' + repo.description;
+              tooltip.html(thtml);
+            });
+            break;
+          case 'user':
+            app.dataService.fetchUserInfo(d.any_commit_url).then(function (user) {
+              var uhtml = 'User: ' + user.author.login;
+              uhtml += '<br/>Commits: ' + d.n_commits;
+              tooltip.html(uhtml);
+            });
+            break;
+        }
+      }).on("mouseout", function (d) {
+        tooltip.transition().style("opacity", 0);
+      }).on("click", function (d) {
+        switch (d.type) {
+          case 'repo':
+            window.open('http://github.com/' + d.id, '_blank');break;
+          case 'user':
+            app.dataService.fetchUserInfo(d.any_commit_url).then(function (user) {
+              return window.open(user.author.html_url, '_blank');
+            });break;
+        }
+      });
+
+      var simulation = d3.forceSimulation().force("charge", d3.forceManyBody().strength(-10).theta(1)).force("link", d3.forceLink().distance(15).strength(0.4).id(function (d) {
         return d.id;
-      })).force("center", d3.forceCenter(width / 2, height / 2)).force("x", d3.forceX()).force("y", d3.forceY());
+      })).force("center", d3.forceCenter(width / 2, height / 2)).force("collide", d3.forceCollide(2)).force("x", d3.forceX()).force("y", d3.forceY());
 
       simulation.nodes(nodeData).on("tick", ticked);
 
@@ -193,26 +248,55 @@ define('data-service',['exports', 'aurelia-framework', 'aurelia-http-client'], f
 
     var _dec, _class;
 
+    var username = "gitPuller1";
+    var password = "64b115ab7af63aa80bbd62449455b115634aca29";
+
+    var userHash = btoa(username + ':' + password);
+
     var DataService = exports.DataService = (_dec = (0, _aureliaFramework.inject)(_aureliaHttpClient.HttpClient), _dec(_class = function () {
-        function DataService(httpClient) {
+        function DataService(itprojClient, githubClient) {
             _classCallCheck(this, DataService);
 
-            httpClient = new _aureliaHttpClient.HttpClient().configure(function (x) {
+            itprojClient = new _aureliaHttpClient.HttpClient().configure(function (x) {
                 x.withBaseUrl('http://beta.api.itprojektmanagement.rafaelkallis.com/');
             });
-            this.httpClient = httpClient;
+            githubClient = new _aureliaHttpClient.HttpClient().configure(function (x) {
+                x.withHeader('Accept', 'application/vnd.github.v3+json');
+                x.withHeader('Authorization', 'Basic ' + userHash);
+                x.withBaseUrl('https://api.github.com/');
+            });
+            this.itprojClient = itprojClient;
+            this.githubClient = githubClient;
         }
 
         DataService.prototype.fetchRepositories = function fetchRepositories() {
-            return this.httpClient.get('repositories').catch(console.log);
+            return this.itprojClient.get('repositories').then(function (res) {
+                return JSON.parse(res.response);
+            }).catch(console.log);
         };
 
         DataService.prototype.fetchUsers = function fetchUsers() {
-            return this.httpClient.get('users').catch(console.log);
+            return this.itprojClient.get('users').then(function (res) {
+                return JSON.parse(res.response);
+            }).catch(console.log);
         };
 
         DataService.prototype.fetchRels = function fetchRels() {
-            return this.httpClient.get('rels').catch(console.log);
+            return this.itprojClient.get('rels').then(function (res) {
+                return JSON.parse(res.response);
+            }).catch(console.log);
+        };
+
+        DataService.prototype.fetchRepositoryInfo = function fetchRepositoryInfo(repo) {
+            return this.githubClient.get('repos/' + repo).then(function (res) {
+                return JSON.parse(res.response);
+            }).catch(console.log);
+        };
+
+        DataService.prototype.fetchUserInfo = function fetchUserInfo(url) {
+            return this.githubClient.get(url).then(function (res) {
+                return JSON.parse(res.response);
+            }).catch(console.log);
         };
 
         DataService.prototype.mockRels = function mockRels() {
@@ -288,28 +372,5 @@ define('resources/index',["exports"], function (exports) {
   exports.configure = configure;
   function configure(config) {}
 });
-define('data-transform',["exports"], function (exports) {
-    "use strict";
-
-    Object.defineProperty(exports, "__esModule", {
-        value: true
-    });
-
-    function _classCallCheck(instance, Constructor) {
-        if (!(instance instanceof Constructor)) {
-            throw new TypeError("Cannot call a class as a function");
-        }
-    }
-
-    var DataTransform = exports.DataTransform = function () {
-        function DataTransform(data) {
-            _classCallCheck(this, DataTransform);
-        }
-
-        DataTransform.prototype.transform = function transform(data) {};
-
-        return DataTransform;
-    }();
-});
-define('text!app.html', ['module'], function(module) { module.exports = "<template>\n  <svg id=\"graph\" width=\"1000\" height=\"800\"></svg>\n</template>\n"; });
+define('text!app.html', ['module'], function(module) { module.exports = "<template>\n  <require from=\"../styles/main.css\"></require>\n  <svg id=\"graph\"></svg>\n</template>\n"; });
 //# sourceMappingURL=app-bundle.js.map
