@@ -125,15 +125,7 @@ export class App {
     var n = Math.round(array.length * percent / 100);
     return array[n];
   }
-/*
-  isStray(array, num) {
-    let q1 = this.quartile(array, 25);
-    let q2 = this.quartile(array, 75);
-    let iqa = q2 - q1;
-
-    return num < (q1 - 100 * iqa) || num > (q2 + 100 * iqa);
-  }
-*/
+  
   /**
    * Draws the graph!
    */
