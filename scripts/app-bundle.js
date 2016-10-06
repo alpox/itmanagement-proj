@@ -81,13 +81,15 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
     };
 
     App.prototype.scale = function scale(commits, num, max, min) {
-      var _this2 = this;
+      var n_max = d3.max(commits);
 
-      var filtered_commits = commits.filter(function (commit) {
-        return _this2.isStray(commits, commit);
+      commits = commits.map(function (c) {
+        return Math.pow(Math.log(c), 3.15);
       });
-      var n_max = d3.max(filtered_commits);
-      if (!this.isStray(commits, num)) return (max - min) * (num / n_max) + min;else return max + 1;
+      num = Math.pow(Math.log(num), 3.15);
+
+
+      return (max - min) * (num / n_max) + min;
     };
 
     App.prototype.isStray = function isStray(commits, commit) {
@@ -101,9 +103,10 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
     };
 
     App.prototype.drawGraph = function drawGraph() {
-      var _this3 = this;
+      var _this2 = this;
 
       var links = [];
+      var rels = this.rels;
       var width = Number.parseInt(d3.select("svg").style("width"));
       var height = Number.parseInt(d3.select("svg").style("height"));
       var graph = d3.select("#graph");
@@ -118,18 +121,21 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       });
 
       var users = this.transform(this.users, 'user', function (entry) {
-        return entry.hashed_email;
+        return entry.hashed_email + entry.name;
       }, function (entry) {
-        return { any_commit_url: entry.any_commit_url };
+        return {
+          any_commit_url: entry.any_commit_url,
+          n_commits: entry.n_commits,
+          name: entry.name };
       });
 
       var nodeData = repositories.concat(users);
 
-      var rels = this.rels.filter(function (rel) {
+      rels = this.rels.filter(function (rel) {
         return nodeData.some(function (node) {
           return node.id == rel.repository_name;
         }) && nodeData.some(function (node) {
-          return node.id == rel.user_hashed_email;
+          return node.id == rel.user_hashed_email + rel.user_name;
         });
       });
 
@@ -138,52 +144,37 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       }).sort(function (a, b) {
         return a - b;
       });
-      commits.avg = commits.reduce(function (p, c) {
-        return p + c;
-      }) / commits.length;
 
       for (var i = 0; i < rels.length - 1; i++) {
         links.push({
           source: rels[i].repository_name,
-          target: rels[i].user_hashed_email,
+          target: rels[i].user_hashed_email + rels[i].user_name,
           value: rels[i].n_commits });
-
-        var user = users.find(function (user) {
-          return user.id == rels[i].user_hashed_email;
-        });
-        if (user.n_commits) user.n_commits += rels[i].n_commits;else user.n_commits = rels[i].n_commits;
       }
 
       var tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0);
 
-      var link = graph.append("g").attr("class", "links").selectAll("line").data(links).enter().append("line").attr("stroke", "#000").attr("stroke-width", function (d) {
-        return _this3.scale(commits, d.value, 4, 2);
+      var link = graph.append("g").attr("x", width / 2).attr("y", height / 2).attr("class", "links").selectAll("line").data(links).enter().append("line").attr("stroke", "#000").attr("stroke-width", function (d) {
+        return _this2.scale(commits, d.value, 4, 2);
       }).attr("opacity", function (d) {
-        return _this3.scale(commits, d.value, 1, 0.3);
+        return _this2.scale(commits, d.value, 1, 0.3);
       });
 
       var node = graph.append("g").attr("class", "nodes").selectAll("circle").data(nodeData).enter().append("circle").attr("class", "node").attr("r", function (d) {
-        return d.n_commits ? d.type == 'repo' ? _this3.scale(commits, d.n_commits, 15, 4) : _this3.scale(commits, d.n_commits, 6, 3) : 3;
+        return d.n_commits ? d.type == 'repo' ? _this2.scale(commits, d.n_commits, 15, 4) : _this2.scale(commits, d.n_commits, 6, 3) : 3;
       }).attr("stroke", "#333").attr("fill", function (d) {
         return d.type == 'repo' ? "#00BCD4" : "#FF9800";
       }).call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended)).on("mouseover", function (d) {
+        d3.event.stopPropagation();
+
         tooltip.transition().style("opacity", .9);
-        tooltip.html('<i class="fa fa-spinner fa-spin"></i>').style("left", d3.event.pageX + "px").style("top", d3.event.pageY - 28 + "px");
 
         switch (d.type) {
           case 'repo':
-            app.dataService.fetchRepositoryInfo(d.id).then(function (repo) {
-              var thtml = 'Name: ' + repo.name;
-              if (repo.description) thtml += '<br/>Description: ' + repo.description;
-              tooltip.html(thtml);
-            });
+            tooltip.html(d.id + '<br/>Commits: ' + d.n_commits).style("left", d3.event.pageX + "px").style("top", d3.event.pageY - 28 + "px");
             break;
           case 'user':
-            app.dataService.fetchUserInfo(d.any_commit_url).then(function (user) {
-              var uhtml = 'User: ' + user.author.login;
-              uhtml += '<br/>Commits: ' + d.n_commits;
-              tooltip.html(uhtml);
-            });
+            tooltip.html(d.name + '<br/>Commits: ' + d.n_commits).style("left", d3.event.pageX + "px").style("top", d3.event.pageY - 28 + "px");
             break;
         }
       }).on("mouseout", function (d) {
@@ -199,13 +190,15 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
         }
       });
 
-      var simulation = d3.forceSimulation().force("charge", d3.forceManyBody().strength(-10)).force("link", d3.forceLink().distance(15).strength(0.4).id(function (d) {
+      var simulation = d3.forceSimulation().force("charge", d3.forceManyBody().strength(-10)).force("link", d3.forceLink().distance(25).strength(0.7).id(function (d) {
         return d.id;
-      })).force("center", d3.forceCenter(width / 2, height / 2)).force("collide", d3.forceCollide(2)).force("x", d3.forceX()).force("y", d3.forceY());
+      })).force("center", d3.forceCenter(width / 2, height / 2)).force("x", d3.forceX()).force("y", d3.forceY());
 
       simulation.nodes(nodeData).on("tick", ticked);
 
       simulation.force("link").links(links);
+
+      var time = Date.now();
 
       function ticked() {
         link.attr("x1", function (d) {

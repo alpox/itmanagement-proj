@@ -1,11 +1,13 @@
 html, body {
     min-height: 100%;
     height: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 svg {
-    height: 100vh;
-    width: 100vw;
+    min-height: 110vh;
+    min-width: 100vw;
 }
 
 .tooltip {
@@ -21,7 +23,6 @@ svg {
 .node {
     cursor: pointer;
 }
-
 
 
 @-webkit-keyframes rotating /* Safari and Chrome */ {
