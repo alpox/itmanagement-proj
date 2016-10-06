@@ -100,12 +100,15 @@ export class App {
    * Used for scaling the nodes and edges
    */
   scale(commits, num, max, min) {
-    let filtered_commits = commits.filter(commit => this.isStray(commits, commit));
-    let n_max = d3.max(filtered_commits);
-    if(!this.isStray(commits, num))
-      return (max - min) * (num / n_max) + min;
-    else
-      return max+1;
+    let n_max = d3.max(commits);
+    
+    commits = commits.map(c => Math.pow(Math.log(c), 3.15));
+    num = Math.pow(Math.log(num), 3.15);
+    //if(!this.isStray(commits, num))
+
+    return (max - min) * (num / n_max) + min;
+    //else
+    //  return max+1;
   }
 
   /**
@@ -131,6 +134,7 @@ export class App {
    */
   drawGraph() {
     let links = [];
+    let rels = this.rels;
     let width = Number.parseInt(d3.select("svg").style("width"));
     let height = Number.parseInt(d3.select("svg").style("height"));
     let graph = d3.select("#graph");
@@ -144,33 +148,30 @@ export class App {
       entry => { return { n_commits: entry.n_commits } });
 
     let users = this.transform(this.users, 'user',
-      entry => entry.hashed_email,
-      entry => { return { any_commit_url: entry.any_commit_url } });
+      entry => entry.hashed_email + entry.name,
+      entry => { return { 
+        any_commit_url: entry.any_commit_url, 
+        n_commits: entry.n_commits,
+        name: entry.name } });
 
     // Create a single list of datapoints for users and repositories
     // which are identified through their type
     let nodeData = repositories.concat(users);
 
-    let rels = this.rels.filter(rel =>
+    rels = this.rels.filter(rel =>
       nodeData.some(node => node.id == rel.repository_name) &&
-      nodeData.some(node => node.id == rel.user_hashed_email))
+      nodeData.some(node => node.id == (rel.user_hashed_email + rel.user_name)))
 
-    let commits = rels.map(rel => rel.n_commits).sort((a,b) => a-b);
-    commits.avg = commits.reduce((p,c) => p + c) / commits.length;
+    let commits = rels
+      .map(rel => rel.n_commits)
+      .sort((a,b) => a-b);
 
     // Create Links between repositories (invisible, used only for force distribution)
     for(var i = 0; i < rels.length - 1; i++) {
         links.push({ 
           source: rels[i].repository_name, 
-          target: rels[i].user_hashed_email, 
+          target: rels[i].user_hashed_email + rels[i].user_name, 
           value: rels[i].n_commits });
-
-        // Add number of commits to the user
-        let user = users.find(user => user.id == rels[i].user_hashed_email)
-        if(user.n_commits)
-          user.n_commits += rels[i].n_commits;
-        else
-          user.n_commits = rels[i].n_commits;
     }
 
     // Define the div for the tooltip
@@ -180,6 +181,8 @@ export class App {
 
     // Draw links
     var link = graph.append("g")
+      .attr("x", width / 2)
+      .attr("y", height / 2)
       .attr("class", "links")
         .selectAll("line")
         .data(links)
@@ -209,33 +212,24 @@ export class App {
                 .on("start", dragstarted)
                 .on("drag", dragged)
                 .on("end", dragended))
-            .on("mouseover", function(d) {	
+            .on("mouseover", function(d) {
+                d3.event.stopPropagation();
+
                 tooltip.transition()
                     .style("opacity", .9);	
-                tooltip.html(`<i class="fa fa-spinner fa-spin"></i>`)	
-                    .style("left", (d3.event.pageX) + "px")		
-                    .style("top", (d3.event.pageY - 28) + "px");
 
                 switch(d.type) {
                   case 'repo':
-                    app.dataService.fetchRepositoryInfo(d.id)
-                      .then(repo => {
-                        let thtml = `Name: ${repo.name}`;
-                        if(repo.description)
-                          thtml += `<br/>Description: ${repo.description}`;
-                        tooltip.html(thtml)
-                      })
+                    tooltip.html(`${d.id}<br/>Commits: ${d.n_commits}`)	
+                      .style("left", (d3.event.pageX) + "px")		
+                      .style("top", (d3.event.pageY - 28) + "px");
                     break;
                   case 'user':
-                    app.dataService.fetchUserInfo(d.any_commit_url)
-                      .then(user => {
-                        let uhtml = `User: ${user.author.login}`;
-                        uhtml += `<br/>Commits: ${d.n_commits}`;
-                        tooltip.html(uhtml)
-                      })
+                    tooltip.html(`${d.name}<br/>Commits: ${d.n_commits}`)	
+                      .style("left", (d3.event.pageX) + "px")		
+                      .style("top", (d3.event.pageY - 28) + "px");
                     break;
                 }
-                
             })
             .on("mouseout", function(d) {		
                 tooltip.transition()	
@@ -253,9 +247,12 @@ export class App {
     // Setup forces
     let simulation = d3.forceSimulation()
         .force("charge", d3.forceManyBody().strength(-10))
-        .force("link", d3.forceLink().distance(15).strength(0.4).id(function(d) { return d.id; }))
+        .force("link", d3.forceLink().distance(25).strength(0.7).id(function(d) { return d.id; }))
         .force("center", d3.forceCenter(width / 2, height / 2))
-        .force("collide", d3.forceCollide(2))
+        /*.force("collide", d3.forceCollide(d => { return d.type == 'repo' ?
+          this.scale(commits, d.n_commits, 15, 4) + 3 : 
+          this.scale(commits, d.n_commits, 6, 3) + 2
+        }))*/
         .force("x", d3.forceX())
         .force("y", d3.forceY());
 
@@ -267,11 +264,14 @@ export class App {
     simulation.force("link")
         .links(links);
 
+    let time = Date.now();
+
     /**
      * On each tick of the force simulation, set the
      * link and node positions to their new position.
      */
     function ticked() {
+        //if(Date.now() - time < 3000) return;
         link
           .attr("x1", function(d) { return d.source.x; })
           .attr("y1", function(d) { return d.source.y; })
@@ -281,6 +281,8 @@ export class App {
         node
           .attr("cx", function(d) { return d.x; })
           .attr("cy", function(d) { return d.y; });
+
+        //simulation.stop();
     }
 
     /**
@@ -289,6 +291,7 @@ export class App {
      * examples out there and do nothing else than applying
      * The necessary eventhandling for drag & drop
      */
+    
     function dragstarted(d) {
       if (!d3.event.active) simulation.alphaTarget(0.3).restart();
       d.fx = d.x;
