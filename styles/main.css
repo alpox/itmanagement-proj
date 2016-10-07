@@ -13,7 +13,7 @@ svg {
 .tooltip {
     font-family: "Times new Roman";
     font-weight: bold;
-    position: absolute;
+    position: fixed;
     background-color: #ddd;
     padding: 6px 12px;
     border-radius: 4px;
@@ -24,6 +24,16 @@ svg {
 
 .node {
     cursor: pointer;
+}
+
+.spinner {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  background-color: rgba(200, 200, 200, 0.8);
+  padding: 30px;
+  transform: translate(-50%, -50%);
+  border-radius: 6px;
 }
 
 @-webkit-keyframes rotating /* Safari and Chrome */ {

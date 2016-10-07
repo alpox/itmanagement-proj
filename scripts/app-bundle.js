@@ -40,32 +40,17 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       this.dataService = dataService;
     }
 
-    App.prototype.activate = function activate() {
+    App.prototype.attached = function attached() {
       var _this = this;
 
-      return Promise.all([this.dataService.fetchRepositories(), this.dataService.fetchUsers(), this.dataService.fetchRels()]).then(function (result) {
+      Promise.all([this.dataService.fetchRepositories(), this.dataService.fetchUsers(), this.dataService.fetchRels()]).then(function (result) {
         _this.repositories = result[0];
         _this.users = result[1];
         _this.rels = result[2];
 
-        return true;
+
+        _this.drawGraph();
       });
-    };
-
-    App.prototype.attached = function attached() {
-      this.drawGraph();
-
-      window.addEventListener("resize", this.resizeEventHandler.bind(this));
-    };
-
-    App.prototype.detached = function detached() {
-      window.removeEventListener("resize", this.resizeEventHandler.bind(this));
-    };
-
-    App.prototype.resizeEventHandler = function resizeEventHandler() {
-      clearTimeout(this.resizeTimer);
-
-      this.resizeTimer = setTimeout(this.drawGraph(), 150);
     };
 
     App.prototype.transform = function transform(data, type, idFunc, includeFunc) {
@@ -124,6 +109,10 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       var height = Number.parseInt(d3.select("svg").style("height"));
       var graph = d3.select("#graph");
       var app = this;
+
+      _aureliaFramework.DOM.querySelectorAll(".spinner").forEach(function (s) {
+        return s.style.display = "block";
+      });
 
       graph.selectAll("*").remove();
 
@@ -221,9 +210,19 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       simulation.force("link").links(links);
 
       var time = Date.now();
+      var tick = 3000;
+      var lastTickTime = Date.now();
 
       function ticked() {
-        if (Date.now() - time < 15000) return;
+        if (Date.now() - lastTickTime < tick) return;
+        lastTickTime = Date.now();
+        if (Date.now() - time >= 20000) {
+          _aureliaFramework.DOM.querySelectorAll(".spinner").forEach(function (s) {
+            return s.style.display = "none";
+          });
+          simulation.stop();
+        }
+
         link.attr("x1", function (d) {
           return d.source.x;
         }).attr("y1", function (d) {
@@ -239,8 +238,6 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
         }).attr("cy", function (d) {
           return d.y;
         });
-
-        simulation.stop();
       }
 
       function highlightNeighbours(node) {
@@ -422,5 +419,5 @@ define('resources/index',["exports"], function (exports) {
   exports.configure = configure;
   function configure(config) {}
 });
-define('text!app.html', ['module'], function(module) { module.exports = "<template>\n  <require from=\"../styles/main.css\"></require>\n  <svg id=\"graph\"></svg>\n</template>\n"; });
+define('text!app.html', ['module'], function(module) { module.exports = "<template>\n  <require from=\"../styles/main.css\"></require>\n  <svg id=\"graph\"></svg>\n  <div class=\"spinner\">\n    <i class=\"fa fa-spinner fa-spin fa-4x\"></i>\n  </div>\n</template>\n"; });
 //# sourceMappingURL=app-bundle.js.map

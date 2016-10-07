@@ -1,4 +1,4 @@
-import {inject} from 'aurelia-framework';
+import {inject, DOM} from 'aurelia-framework';
 import {PLATFORM} from 'aurelia-pal';
 import {DataService} from './data-service';
 import * as d3 from 'd3';
@@ -22,17 +22,12 @@ export class App {
   }
 
   /**
-   * Acivate makes the framework wait for the Promise
-   * to resolve to true before attaching the component
-   * so the needed data will be available.
-   * 
-   * We catch all data from the endpoints here with
-   * Promise.all, log an error if one occurs and
-   * JSON.parse the returned values and store them
-   * into the class variables.
+   * The attached() hook gets called when the component Is
+   * attached to the website.
+   * We just draw our graph here.
    */
-  activate() {
-    return Promise.all([
+  attached() {
+    Promise.all([
       this.dataService.fetchRepositories(),
       this.dataService.fetchUsers(),
       this.dataService.fetchRels()
@@ -41,29 +36,9 @@ export class App {
       [this.repositories,
        this.users,
        this.rels] = result;
-       return true;
+       
+      this.drawGraph();
     });
-  }
-
-  /**
-   * The attached() hook gets called when the component Is
-   * attached to the website.
-   * We just draw our graph here.
-   */
-  attached() {
-    this.drawGraph();
-
-    window.addEventListener("resize", this.resizeEventHandler.bind(this));
-  }
-
-  detached() {
-    window.removeEventListener("resize", this.resizeEventHandler.bind(this));
-  }
-
-  resizeEventHandler() {
-    clearTimeout(this.resizeTimer);
-
-    this.resizeTimer = setTimeout(this.drawGraph(), 150);
   }
 
   /**
@@ -154,6 +129,8 @@ export class App {
     let height = Number.parseInt(d3.select("svg").style("height"));
     let graph = d3.select("#graph");
     let app = this;
+
+    DOM.querySelectorAll(".spinner").forEach(s => s.style.display = "block");
 
     graph.selectAll("*").remove();
 
@@ -284,13 +261,21 @@ export class App {
         .links(links);
 
     let time = Date.now();
+    let tick = 3000;
+    let lastTickTime = Date.now();
 
     /**
      * On each tick of the force simulation, set the
      * link and node positions to their new position.
      */
     function ticked() {
-        if(Date.now() - time < 15000) return;
+        if(Date.now() - lastTickTime < tick) return;
+        lastTickTime = Date.now();
+        if(Date.now() - time >= 20000) {
+          DOM.querySelectorAll(".spinner").forEach(s => s.style.display = "none");
+          simulation.stop();
+        }
+
         link
           .attr("x1", function(d) { return d.source.x; })
           .attr("y1", function(d) { return d.source.y; })
@@ -300,8 +285,6 @@ export class App {
         node
           .attr("cx", function(d) { return d.x; })
           .attr("cy", function(d) { return d.y; });
-
-        simulation.stop();
     }
 
 
