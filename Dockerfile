@@ -9,5 +9,5 @@ RUN npm install
 RUN au --help
 RUN aurelia --help
 
-EXPOSE 8080
+EXPOSE 9000
 ENTRYPOINT au run --watch
