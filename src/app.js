@@ -246,13 +246,13 @@ export class App {
 
     // Setup forces
     let simulation = d3.forceSimulation()
-        .force("charge", d3.forceManyBody().strength(-10))
-        .force("link", d3.forceLink().distance(25).strength(0.7).id(function(d) { return d.id; }))
+        .force("charge", d3.forceManyBody().strength(-4))
+        .force("link", d3.forceLink().strength(0.5).id(function(d) { return d.id; }))
         .force("center", d3.forceCenter(width / 2, height / 2))
-        /*.force("collide", d3.forceCollide(d => { return d.type == 'repo' ?
-          this.scale(commits, d.n_commits, 15, 4) + 3 : 
-          this.scale(commits, d.n_commits, 6, 3) + 2
-        }))*/
+        .force("collide", d3.forceCollide(d => { return d.type == 'repo' ?
+          this.scale(commits, d.n_commits, 15, 4) + 1 : 
+          this.scale(commits, d.n_commits, 6, 3) + 1
+        }))
         .force("x", d3.forceX())
         .force("y", d3.forceY());
 
@@ -271,7 +271,7 @@ export class App {
      * link and node positions to their new position.
      */
     function ticked() {
-        //if(Date.now() - time < 3000) return;
+        if(Date.now() - time < 15000) return;
         link
           .attr("x1", function(d) { return d.source.x; })
           .attr("y1", function(d) { return d.source.y; })
@@ -282,7 +282,7 @@ export class App {
           .attr("cx", function(d) { return d.x; })
           .attr("cy", function(d) { return d.y; });
 
-        //simulation.stop();
+        simulation.stop();
     }
 
     /**

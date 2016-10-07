@@ -190,9 +190,11 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
         }
       });
 
-      var simulation = d3.forceSimulation().force("charge", d3.forceManyBody().strength(-10)).force("link", d3.forceLink().distance(25).strength(0.7).id(function (d) {
+      var simulation = d3.forceSimulation().force("charge", d3.forceManyBody().strength(-4)).force("link", d3.forceLink().strength(0.5).id(function (d) {
         return d.id;
-      })).force("center", d3.forceCenter(width / 2, height / 2)).force("x", d3.forceX()).force("y", d3.forceY());
+      })).force("center", d3.forceCenter(width / 2, height / 2)).force("collide", d3.forceCollide(function (d) {
+        return d.type == 'repo' ? _this2.scale(commits, d.n_commits, 15, 4) + 1 : _this2.scale(commits, d.n_commits, 6, 3) + 1;
+      })).force("x", d3.forceX()).force("y", d3.forceY());
 
       simulation.nodes(nodeData).on("tick", ticked);
 
@@ -201,6 +203,7 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       var time = Date.now();
 
       function ticked() {
+        if (Date.now() - time < 15000) return;
         link.attr("x1", function (d) {
           return d.source.x;
         }).attr("y1", function (d) {
@@ -216,6 +219,8 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
         }).attr("cy", function (d) {
           return d.y;
         });
+
+        simulation.stop();
       }
 
       function dragstarted(d) {
