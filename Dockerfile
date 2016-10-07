@@ -1,4 +1,4 @@
-FROM node:slim
+FROM node
 
 RUN mkdir -p /usr/src/app
 COPY . /usr/src/app/
