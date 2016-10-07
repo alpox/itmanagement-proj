@@ -128,11 +128,26 @@ export class App {
     var n = Math.round(array.length * percent / 100);
     return array[n];
   }
+
+  findNeighbours(node, rels) {
+     return rels
+      .filter(rel => 
+        rel.target.id == node.id || rel.source.id == node.id)
+      .map(rel => 
+        rel.target.id === node.id && rel.source ||
+        rel.source.id === node.id && rel.target);
+  }
+
+  sanitizeId(str) {
+    return "id" + str
+      .replace(/["'@\/\-\.# \(\)]/g, '')
+  }
   
   /**
    * Draws the graph!
    */
   drawGraph() {
+    let self = this;
     let links = [];
     let rels = this.rels;
     let width = Number.parseInt(d3.select("svg").style("width"));
@@ -198,6 +213,7 @@ export class App {
           .data(nodeData)
           .enter().append("circle")
             .attr("class", "node")
+            .attr("id", d => this.sanitizeId(d.id))
             .attr("r", d =>
                 d.n_commits ? 
                 d.type == 'repo' ?
@@ -221,19 +237,22 @@ export class App {
                 switch(d.type) {
                   case 'repo':
                     tooltip.html(`${d.id}<br/>Commits: ${d.n_commits}`)	
-                      .style("left", (d3.event.pageX) + "px")		
-                      .style("top", (d3.event.pageY - 28) + "px");
+                      //.style("left", (d3.event.pageX) + "px")		
+                      //.style("top", (d3.event.pageY - 28) + "px");
                     break;
                   case 'user':
                     tooltip.html(`${d.name}<br/>Commits: ${d.n_commits}`)	
-                      .style("left", (d3.event.pageX) + "px")		
-                      .style("top", (d3.event.pageY - 28) + "px");
+                      //.style("left", (d3.event.pageX) + "px")		
+                      //.style("top", (d3.event.pageY - 28) + "px");
                     break;
                 }
+
+                highlightNeighbours(d);
             })
             .on("mouseout", function(d) {		
                 tooltip.transition()	
                     .style("opacity", 0);	
+                unhighlightNeighbours(d);
             })
             .on("click", function(d) {		
                 switch(d.type) {
@@ -283,6 +302,27 @@ export class App {
           .attr("cy", function(d) { return d.y; });
 
         simulation.stop();
+    }
+
+
+    function highlightNeighbours(node) {
+      let neighbours = self.findNeighbours(node, links);
+
+      [node].concat(neighbours).forEach(n => {
+        let highlightColor = n.type == 'repo' ?  "#3de8ff" : "#ffca7a"
+        graph.select(`#${self.sanitizeId(n.id)}`)
+          .attr("style", `fill:${highlightColor}`)
+      });
+    }
+
+    function unhighlightNeighbours(node) {
+      let neighbours = self.findNeighbours(node, links);
+
+      [node].concat(neighbours).forEach(n => {
+        let color = n.type == 'repo' ?  "#00BCD4" : "#FF9800"
+        graph.select(`#${self.sanitizeId(n.id)}`)
+          .attr("style", `fill:${color}`)
+      });
     }
 
     /**

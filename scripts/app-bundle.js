@@ -102,9 +102,22 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       return array[n];
     };
 
+    App.prototype.findNeighbours = function findNeighbours(node, rels) {
+      return rels.filter(function (rel) {
+        return rel.target.id == node.id || rel.source.id == node.id;
+      }).map(function (rel) {
+        return rel.target.id === node.id && rel.source || rel.source.id === node.id && rel.target;
+      });
+    };
+
+    App.prototype.sanitizeId = function sanitizeId(str) {
+      return "id" + str.replace(/["'@\/\-\.# \(\)]/g, '');
+    };
+
     App.prototype.drawGraph = function drawGraph() {
       var _this2 = this;
 
+      var self = this;
       var links = [];
       var rels = this.rels;
       var width = Number.parseInt(d3.select("svg").style("width"));
@@ -160,7 +173,9 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
         return _this2.scale(commits, d.value, 1, 0.3);
       });
 
-      var node = graph.append("g").attr("class", "nodes").selectAll("circle").data(nodeData).enter().append("circle").attr("class", "node").attr("r", function (d) {
+      var node = graph.append("g").attr("class", "nodes").selectAll("circle").data(nodeData).enter().append("circle").attr("class", "node").attr("id", function (d) {
+        return _this2.sanitizeId(d.id);
+      }).attr("r", function (d) {
         return d.n_commits ? d.type == 'repo' ? _this2.scale(commits, d.n_commits, 15, 4) : _this2.scale(commits, d.n_commits, 6, 3) : 3;
       }).attr("stroke", "#333").attr("fill", function (d) {
         return d.type == 'repo' ? "#00BCD4" : "#FF9800";
@@ -171,14 +186,19 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
 
         switch (d.type) {
           case 'repo':
-            tooltip.html(d.id + '<br/>Commits: ' + d.n_commits).style("left", d3.event.pageX + "px").style("top", d3.event.pageY - 28 + "px");
+            tooltip.html(d.id + '<br/>Commits: ' + d.n_commits);
+
             break;
           case 'user':
-            tooltip.html(d.name + '<br/>Commits: ' + d.n_commits).style("left", d3.event.pageX + "px").style("top", d3.event.pageY - 28 + "px");
+            tooltip.html(d.name + '<br/>Commits: ' + d.n_commits);
+
             break;
         }
+
+        highlightNeighbours(d);
       }).on("mouseout", function (d) {
         tooltip.transition().style("opacity", 0);
+        unhighlightNeighbours(d);
       }).on("click", function (d) {
         switch (d.type) {
           case 'repo':
@@ -221,6 +241,24 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
         });
 
         simulation.stop();
+      }
+
+      function highlightNeighbours(node) {
+        var neighbours = self.findNeighbours(node, links);
+
+        [node].concat(neighbours).forEach(function (n) {
+          var highlightColor = n.type == 'repo' ? "#3de8ff" : "#ffca7a";
+          graph.select('#' + self.sanitizeId(n.id)).attr("style", 'fill:' + highlightColor);
+        });
+      }
+
+      function unhighlightNeighbours(node) {
+        var neighbours = self.findNeighbours(node, links);
+
+        [node].concat(neighbours).forEach(function (n) {
+          var color = n.type == 'repo' ? "#00BCD4" : "#FF9800";
+          graph.select('#' + self.sanitizeId(n.id)).attr("style", 'fill:' + color);
+        });
       }
 
       function dragstarted(d) {

@@ -18,12 +18,13 @@ svg {
     padding: 6px 12px;
     border-radius: 4px;
     pointer-events: none;
+    right: 0;
+    top: 0;
 }
 
 .node {
     cursor: pointer;
 }
-
 
 @-webkit-keyframes rotating /* Safari and Chrome */ {
   from {
