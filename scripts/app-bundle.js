@@ -85,7 +85,7 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
     };
 
     App.prototype.sanitizeId = function sanitizeId(str) {
-      return "id" + str.replace(/["'@\/\-\.# \(\)]/g, '');
+      return "id" + str.replace(/[^\w-]/g, '');
     };
 
     App.prototype.drawGraph = function drawGraph() {
@@ -200,15 +200,16 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       var tick = 3000;
       var lastTickTime = Date.now();
 
+      simulation.on('end', function () {
+        _aureliaFramework.DOM.querySelectorAll(".spinner").forEach(function (s) {
+          return s.style.display = "none";
+        });
+      });
+
       function ticked() {
         if (Date.now() - lastTickTime < tick) return;
         lastTickTime = Date.now();
-        if (Date.now() - time >= 20000) {
-          _aureliaFramework.DOM.querySelectorAll(".spinner").forEach(function (s) {
-            return s.style.display = "none";
-          });
-          simulation.stop();
-        }
+        if (Date.now() - time >= 20000) simulation.stop();
 
         link.attr("x1", function (d) {
           return d.source.x;
@@ -292,7 +293,7 @@ define('data-service',['exports', 'aurelia-framework', 'aurelia-http-client'], f
             _classCallCheck(this, DataService);
 
             itprojClient = new _aureliaHttpClient.HttpClient().configure(function (x) {
-                x.withBaseUrl('http://beta.api.itprojektmanagement.rafaelkallis.com/');
+                x.withBaseUrl('http://api.itprojektmanagement.rafaelkallis.com/');
             });
             githubClient = new _aureliaHttpClient.HttpClient().configure(function (x) {
                 x.withHeader('Accept', 'application/vnd.github.v3+json');
