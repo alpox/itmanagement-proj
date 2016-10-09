@@ -14,7 +14,7 @@ export class DataService {
     constructor(itprojClient, githubClient) {
         itprojClient = new HttpClient()
             .configure(x => {
-                x.withBaseUrl('http://beta.api.itprojektmanagement.rafaelkallis.com/');
+                x.withBaseUrl('http://api.itprojektmanagement.rafaelkallis.com/');
             });
         githubClient = new HttpClient()
             .configure(x => {
