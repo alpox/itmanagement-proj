@@ -79,29 +79,8 @@ export class App {
     
     commits = commits.map(c => Math.pow(Math.log(c), 3.15));
     num = Math.pow(Math.log(num), 3.15);
-    //if(!this.isStray(commits, num))
 
     return (max - min) * (num / n_max) + min;
-    //else
-    //  return max+1;
-  }
-
-  /**
-   * Used for identifying too high values in the array
-   * of commits
-   */
-  isStray(commits, commit) {
-    return commit >= 2 * this.quartile(commits, 99);
-  }
-
-  /**
-   * Used for identifying a statistical quartile
-   * in an array of commits
-   */
-  quartile(array, percent) {
-    if (!percent) percent = 50;
-    var n = Math.round(array.length * percent / 100);
-    return array[n];
   }
 
   findNeighbours(node, rels) {
@@ -159,7 +138,7 @@ export class App {
       .sort((a,b) => a-b);
 
     // Create Links between repositories (invisible, used only for force distribution)
-    for(var i = 0; i < rels.length - 1; i++) {
+    for(var i = 0; i < rels.length; i++) {
         links.push({ 
           source: rels[i].repository_name, 
           target: rels[i].user_hashed_email + rels[i].user_name, 
@@ -195,8 +174,7 @@ export class App {
                 d.n_commits ? 
                 d.type == 'repo' ?
                 this.scale(commits, d.n_commits, 15, 4) : 
-                this.scale(commits, d.n_commits, 6, 3) :
-                3)
+                this.scale(commits, d.n_commits, 6, 3) : 3)
             .attr("stroke", "#333")
             .attr("fill", d => d.type == 'repo' ? 
                 "#00BCD4" : 
@@ -214,13 +192,9 @@ export class App {
                 switch(d.type) {
                   case 'repo':
                     tooltip.html(`${d.id}<br/>Commits: ${d.n_commits}`)	
-                      //.style("left", (d3.event.pageX) + "px")		
-                      //.style("top", (d3.event.pageY - 28) + "px");
                     break;
                   case 'user':
                     tooltip.html(`${d.name}<br/>Commits: ${d.n_commits}`)	
-                      //.style("left", (d3.event.pageX) + "px")		
-                      //.style("top", (d3.event.pageY - 28) + "px");
                     break;
                 }
 

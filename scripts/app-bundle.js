@@ -73,18 +73,7 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
       });
       num = Math.pow(Math.log(num), 3.15);
 
-
       return (max - min) * (num / n_max) + min;
-    };
-
-    App.prototype.isStray = function isStray(commits, commit) {
-      return commit >= 2 * this.quartile(commits, 99);
-    };
-
-    App.prototype.quartile = function quartile(array, percent) {
-      if (!percent) percent = 50;
-      var n = Math.round(array.length * percent / 100);
-      return array[n];
     };
 
     App.prototype.findNeighbours = function findNeighbours(node, rels) {
@@ -147,7 +136,7 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
         return a - b;
       });
 
-      for (var i = 0; i < rels.length - 1; i++) {
+      for (var i = 0; i < rels.length; i++) {
         links.push({
           source: rels[i].repository_name,
           target: rels[i].user_hashed_email + rels[i].user_name,
@@ -176,11 +165,9 @@ define('app',['exports', 'aurelia-framework', 'aurelia-pal', './data-service', '
         switch (d.type) {
           case 'repo':
             tooltip.html(d.id + '<br/>Commits: ' + d.n_commits);
-
             break;
           case 'user':
             tooltip.html(d.name + '<br/>Commits: ' + d.n_commits);
-
             break;
         }
 
