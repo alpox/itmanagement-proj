@@ -239,9 +239,11 @@ export class App {
     let tick = 3000;
     let lastTickTime = Date.now();
 
-    simulation.on('end', () => {
+    simulation.on('end', removeSpinner);
+
+    function removeSpinner() {
       DOM.querySelectorAll(".spinner").forEach(s => s.style.display = "none");
-    })
+    }
 
     /**
      * On each tick of the force simulation, set the
@@ -250,8 +252,10 @@ export class App {
     function ticked() {
         if(Date.now() - lastTickTime < tick) return;
         lastTickTime = Date.now();
-        if(Date.now() - time >= 20000)  
+        if(Date.now() - time >= 20000) {
           simulation.stop();
+          removeSpinner();
+        }
 
         link
           .attr("x1", function(d) { return d.source.x; })
